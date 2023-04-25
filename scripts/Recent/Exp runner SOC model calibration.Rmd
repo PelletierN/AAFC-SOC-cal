@@ -287,10 +287,10 @@ new_params_bounds <- parameter_bounds %>%
 #=================================================================================
 # read prior distribution
 # (Required columns: Parameter, value, lower, upper)
-paramBounds <- new_params_bounds
+paramBounds <- parameter_bounds
 #=================================================================================
 # names of parameters that are allowed to vary
-varSI       <- paramBounds$Parameter
+varSI       <- sensitive_params$params
 nParams     <- length(varSI)
 #=================================================================================
 # LHS sampling for SIR
@@ -309,6 +309,15 @@ for(i in 1:nParams){
 X <- as.data.frame(Y1)
 names(X) <- varSI
 X <- cbind("SampleID" = 1:nrow(X), X)
+
+names_X <- names(X)
+for (i in 1:nrow(parameter_bounds)){
+  param_on <- parameter_bounds[i,1]
+  param_def <- parameter_bounds[i,2]
+  if (param_on %in% names_X){} else 
+    {X[[param_on]]<-param_def}
+}
+
 head(X)
 ```
 

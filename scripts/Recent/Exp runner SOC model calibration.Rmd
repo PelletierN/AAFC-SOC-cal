@@ -5,7 +5,14 @@ author:
   - Francis Durnin-Vermette (francis.durnin-vermette@agr.gc.ca), 
   - Arumugam Thiagarajan (arumugam.thiagarajan@ec.gc.ca)
 date: "2023-04-14"
-output: html_document
+output:
+  html_notebook:
+    toc: true
+    number_sections: true
+    df_print: paged
+bibliography: bib.bib
+editor_options:
+  chunk_output_type: inline
 ---
 
 ## Load all packages
@@ -24,7 +31,9 @@ library(ggplot2)
 library(lhs)
 library(reshape2)
 library(imputeTS)
+library(Metrics)
 ```
+
 ## Set main working directory
 ```{r}
 main.dir <- "C://Users//pelletierni//OneDrive - AGR-AGR//Documents//SOC modelling//soc-modelling-framework-NP//"
@@ -336,24 +345,37 @@ posterior.distribution <- run.SIR.IPCCT2(main.dir=main.dir,
                          initial_c=initial_c,
                          sample_size=SIR_sample_size,
                          resample_size=SIR_resample_size)
+
+write.csv(posterior.distribution ,paste0(main.dir,"results//",Experiment_name,"//IPCCT2//SIR//SIR_posterior_distribution.csv"),row.names=F)
 ```
 
 ## check posterior distributions
 ```{r}
 ###############
+posterior.distribution <- read.csv(paste0(main.dir,"results//",Experiment_name,"//IPCCT2//SIR//SIR_posterior_distribution.csv"))
+
+
+# Find maximum a posteriori (MAP)
+get_max_density <- function(x) {
+	dens <- x %>%
+		density
+	return(dens$x[which.max(dens$y)])
+}
 
 sir_table <- posterior.distribution %>%
   reshape2::melt(id.vars="SampleID") %>%
   group_by(variable)%>%
-  summarise(`2.5%` = quantile(value,probs = 0.025),
-                `25%` = quantile(value,probs = 0.25),
-                median = quantile(value,probs = 0.50),
-                `75%` = quantile(value,probs = 0.75),
-                `97.5%` = quantile(value,probs = 0.975))
+	summarise(`2.5%` = quantile(value, probs = 0.025),
+						`25%` = quantile(value, probs = 0.25),
+						median = quantile(value, probs = 0.50),
+						`75%` = quantile(value, probs = 0.75),
+						`97.5%` = quantile(value, probs = 0.975),
+						map = get_max_density(value),
+						mean = mean(value))
 
 
 write.csv(sir_table ,paste0(main.dir,"results//",Experiment_name,"//IPCCT2//SIR//SIR_summary.csv"),row.names=F)
-write.csv(posterior.distribution ,paste0(main.dir,"results//",Experiment_name,"//IPCCT2//SIR//SIR_posterior_distribution.csv"),row.names=F)
+
 
 ## Graphing:
 
@@ -374,6 +396,86 @@ sir_graph <- ggplot() +
 
 print(sir_graph)
 ggsave(plot = sir_graph, paste0(main.dir,"results//",Experiment_name,"//IPCCT2//SIR//SIR_distributions.png"))
+```
+
+# Results validation
+
+## Predict SOC for evaluation with prior and posterior parameter distributions
+```{r}
+evaluation_data <- read.csv(file=paste0(main.dir,
+                                      "data//prepared data//",
+                                      Experiment_name,
+                                      "//IPCCT2//site_data_evaluation.csv"))
+posterior.distribution <- read.csv(paste0(main.dir,"results//",Experiment_name,"//IPCCT2//SIR//SIR_posterior_distribution.csv"))
+prior.distribution <- parameter_bounds
+
+parameters_post <- sir_table %>% select(variable,map) %>% pivot_wider(names_from=variable,values_from=map)
+parameters_prior <- parameter_bounds %>% select(Parameter,value) %>% pivot_wider(names_from=Parameter,values_from=value)
+
+test.post <- run.IPCCT2.parralel(main.dir=main.dir,
+                           parameter.df=parameters_post,
+                           evaluation.df=evaluation_data,
+                           stocks.df=stocks_data,
+                           climate_data=climate_data,
+                           initial_c=initial_c)
+
+test.prior <- run.IPCCT2.parralel(main.dir=main.dir,
+                           parameter.df=parameters_prior,
+                           evaluation.df=evaluation_data,
+                           stocks.df=stocks_data,
+                           climate_data=climate_data,
+                           initial_c=initial_c)
+
+summary.fit.calibration <- test.prior %>%
+  rename(soc_modelled_prior=soc_total) %>%
+  merge(test.post,by=c("site","year","actual")) %>%
+  rename(soc_modelled_post=soc_total) %>%
+  group_by(site) %>%
+  arrange(site,year) %>%
+  mutate(lag_actual = lag(actual),
+         lag_prior = lag(soc_modelled_prior),
+         lag_post = lag(soc_modelled_post),
+         lag_time = lag(year)) %>%
+  ungroup() %>%
+  mutate(delta_time = year - lag_time) %>%
+  mutate(delta_soc_per_year = (actual-lag_actual)/delta_time,
+         delta_soc_per_year_prior = (soc_modelled_prior-lag_prior)/delta_time,
+         delta_soc_per_year_posterior = (soc_modelled_post-lag_post)/delta_time,
+         delta_soc = (actual-lag_actual),
+         delta_soc_prior = (soc_modelled_prior-lag_prior),
+         delta_soc_posterior = (soc_modelled_post-lag_post)) %>%
+  group_by(site) %>%
+  arrange(site,year) %>%
+  mutate(cum_actual = cumsum(replace_na(delta_soc,0)),
+    cum_prior = cumsum(replace_na(delta_soc_prior,0)),
+         cum_posterior = cumsum(replace_na(delta_soc_posterior,0))) %>%
+  ungroup()
+
+
+
+res1 <- data.frame(test="SOC_prior",
+                  t(validation_calculate_stats(summary.fit.calibration$soc_modelled_prior,
+                                               summary.fit.calibration$actual)))
+res2 <- data.frame(test="SOC_posterior",
+                  t(validation_calculate_stats(summary.fit.calibration$soc_modelled_post,
+                                               summary.fit.calibration$actual)))
+res3 <- data.frame(test="delta_SOC_prior",
+                  t(validation_calculate_stats(summary.fit.calibration$delta_soc_per_year_prior,
+                                               summary.fit.calibration$delta_soc_per_year)))
+
+res4 <- data.frame(test="delta_SOC_posterior",
+                  t(validation_calculate_stats(summary.fit.calibration$delta_soc_per_year_posterior,
+                                               summary.fit.calibration$delta_soc_per_year)))
+
+res5 <- data.frame(test="cumul_SOC_prior",
+                  t(validation_calculate_stats(summary.fit.calibration$cum_prior,
+                                               summary.fit.calibration$cum_actual)))
+
+res6 <- data.frame(test="cumul_SOC_posterior",
+                  t(validation_calculate_stats(summary.fit.calibration$cum_posterior,
+                                               summary.fit.calibration$cum_actual)))
+
+final <- rbind(res1,res2,res3,res4,res5,res6)
 ```
 
 

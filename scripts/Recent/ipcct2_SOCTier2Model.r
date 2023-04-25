@@ -6,6 +6,7 @@
 #init.slow = init_slow
 #init.passive = init_passive
 
+
 # DEFAULT -----------------------------------------------------------------
 IPCCTier2SOMmodel <- function(SiteData, wth, init.active,
                               init.slow,init.passive,
@@ -31,7 +32,7 @@ if (length(params)==0){
  tmax       = 45
  topt       = 33.69
  plig       = 3 } else {
-   f1 = params[1,]$f1
+   f1 = ifelse(params[1,]$f1
    f2 = params[1,]$f2
    f3 = params[1,]$f3
    f5 = params[1,]$f5

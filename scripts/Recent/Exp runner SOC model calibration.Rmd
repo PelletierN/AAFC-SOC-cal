@@ -35,13 +35,11 @@ main.dir <- "C://Users//pelletierni//OneDrive - AGR-AGR//Documents//SOC modellin
 site_data <- read.csv(paste0(main.dir,"data//input data//site data//LTE_Master_beta_apr_18.csv"))
 dsm_data<- read.csv(paste0(main.dir,"data//input data//site data//lte_soc_30_cm_dsm_expid.csv"))
 climate.dir=paste0(main.dir,"data//input data//climate data//W9param_TablesCleaned")
-#polyids_all <- read.csv(paste0(main.dir,"data//input data//climate data//Documentation//all_experiments_fin_locations.csv"))
 parameter_bounds <- read.csv(paste0(main.dir,"data//input data//parameter data//ipcct2_parameters_gsa.csv"), stringsAsFactors = FALSE)
-yield <- read.csv("C://Users//pelletierni//OneDrive - AGR-AGR//Documents//SOC modelling//soc-modelling-framework-NP//data//input data//c_input//slyield_merged_final.csv")
-polyids_all <- read.csv("C://Users//pelletierni//OneDrive - AGR-AGR//Documents//SOC modelling//soc-modelling-framework-NP//data//input data//c_input//exp_location_SLC_linkage.csv") %>%
+yield <- read.csv(paste0(main.dir,"data//input data//c_input//slyield_merged_final.csv"))
+polyids_all <- read.csv(paste0(main.dir,"data//input data//c_input//exp_location_SLC_linkage.csv")) %>%
   select(Exp_ID,POLYID)
-cinput <- read.csv("C://Users//pelletierni//OneDrive - AGR-AGR//Documents//SOC modelling//soc-modelling-framework-NP//data//input data//c_input//cninput.csv")
-
+cinput <- read.csv(paste0(main.dir,"data//input data//c_input//cninput.csv"))
 ```
 
 ## Load functions

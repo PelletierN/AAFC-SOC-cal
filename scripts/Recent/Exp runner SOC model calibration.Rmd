@@ -80,7 +80,7 @@ for (i in folders_needed){
 stocks.df <- get.stocks(site_data)
 #table(stocks.df$Exp_ID)
 correct.fac <- obtain.dsm.correction(stocks.df,dsm_data,merge.key="Exp_ID")
-write.csv(correct.fac,paste0(main.dir,"top30_correction_factors_from_DSM_method.csv"))
+write.csv(correct.fac,paste0(main.dir,"top30_correction_factors_from_DSM_method.csv"),row.names = F)
 
 results=top.SOC.estimate(stocks.df,correct.fac,30)
 write.csv(results,paste0(main.dir,"data//prepared data//IPCCT2//modelled_stocks_top_30_cm.csv"),row.names = F)
@@ -100,6 +100,7 @@ ggplot(data=results,aes(y=modelled_SOC,x=input_type))+
   theme_minimal()+
   theme(axis.text.x = element_text(angle=90))
 ```
+## Rendu ici pour adaptation vers Trt-based process
 
 # Data preperation for IPCCt2 model
 ## Site data preparation

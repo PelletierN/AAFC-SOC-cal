@@ -7,9 +7,10 @@ get.stocks <- function(site_data) {
   stocks.df <- site_data %>%
     mutate(
       site = UniqueStockID,
+      trt = TrtID,
       year = year_name,
       depthID = paste0(soil_depth_min_cm,"-",soil_depth_max_cm)) %>%
-    select(site,year,Exp_ID,soc_tha,soil_depth_min_cm,soil_depth_max_cm,depthID) %>%
+    select(site,trt,year,Exp_ID,soc_tha,soil_depth_min_cm,soil_depth_max_cm,depthID) %>%
     distinct() %>%
     arrange(site,year) %>%
     mutate(soc_tha=as.numeric(soc_tha)) 
@@ -19,12 +20,20 @@ get.stocks <- function(site_data) {
     summarise(mean_soc=mean(soc_tha,na.rm=T)) %>% 
     filter(is.nan(mean_soc)) %>% 
     select(site)
+  
+  missing.trt.list <- stocks.df %>% 
+    group_by(trt) %>% 
+    summarise(mean_soc=mean(soc_tha,na.rm=T)) %>% 
+    filter(is.nan(mean_soc)) %>% 
+    select(trt)
+  
   if(nrow(missing.SOC.list)>0){print(paste0("no C stock measurements available for StockID: ",missing.SOC.list$site))}
+  if(nrow(missing.trt.list)>0){print(paste0("no C stock measurements available for TrtID: ",missing.trt.list$trt))}
   
   # remove NAs
   stocks.df <- stocks.df %>%
     filter(!is.na(soc_tha))
-
+  
   return (stocks.df)
 }
 

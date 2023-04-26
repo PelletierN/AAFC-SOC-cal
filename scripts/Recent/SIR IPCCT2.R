@@ -9,7 +9,14 @@
 # Sampling Importance Resampling algorithm with Latin hypercube sampling in R
 #=================================================================================
 
-run.SIR.IPCCT2 <- function(main.dir,parameter.df,stocks.df,calibration.df,climate_data,initial_c,sample_size,resample_size) {
+run.SIR.IPCCT2 <- function(main.dir,
+                           parameter.df,
+                           stocks.df,
+                           calibration.df,
+                           climate_data,
+                           initial_c,
+                           sample_size,
+                           resample_size) {
 Lkhood <- NULL
 Lkhood_list <- list()
 

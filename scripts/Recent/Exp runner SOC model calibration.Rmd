@@ -36,7 +36,7 @@ library(Metrics)
 
 ## Set main working directory
 ```{r}
-main.dir <- "C://Users//pelletierni//OneDrive - AGR-AGR//Documents//SOC modelling//soc-modelling-framework-NP//"
+main.dir <- "C://Users//pelletierni//OneDrive - AGR-AGR//Documents//AAFC-SOC-cal//"
 ```
 
 ## Load data
@@ -100,19 +100,22 @@ ggplot(data=results,aes(y=modelled_SOC,x=input_type))+
   theme_minimal()+
   theme(axis.text.x = element_text(angle=90))
 ```
+
 # Data preperation for IPCCt2 model
 ## Site data preparation
 ```{r}
 # Site data
-site_data_ipcct2<- data.prep.ipcct2(site_data_raw=site_data,
+site_data_ipcct2 <- data.prep.ipcct2(site_data_raw=site_data,
                               cinput.df=cinput,
                               yield.df=yield,
                               poly.df=polyids_all,
                               save.interim.df=FALSE,
                               interim.df.file=NA)
 
+
 write.csv(site_data_ipcct2,paste0(main.dir,"data//prepared data//IPCCT2//sites_prepared_ipcct2.csv"),row.names = F)
 ```
+
 ## Climate data preperation
 ```{r}
 climate_data_ipcct2 <- data.prep.climate(climate.dir)
@@ -129,7 +132,7 @@ initial.stocks <- stocks.df %>%
   arrange(year) %>%
   slice(1)
 
-write.csv(initial.stocks,paste0(main.dir,"data//prepared data//IPCCT2//initial_stocks_prepared_ipcct2.csv"),row.names = F)
+write.csv(initial.stocks,paste0(main.dir,"data//prepared data//IPCCT2//initial_stocks_all.csv"),row.names = F)
 ```
 
 Get initial C stocks for each pool (model initiation)
@@ -137,7 +140,7 @@ Get initial C stocks for each pool (model initiation)
 # Read the dataset created previously
 climate_data_ipcct2 <- read.csv(paste0(main.dir,"data//prepared data//IPCCT2//climate_prepared_ipcct2.csv"))
 site_data_ipcct2 <- read.csv(paste0(main.dir,"data//prepared data//IPCCT2//sites_prepared_ipcct2.csv"))
-initial.stocks<- read.csv(paste0(main.dir,"data//prepared data//IPCCT2//initial_stocks_prepared_ipcct2.csv"))
+initial.stocks<- read.csv(paste0(main.dir,"data//prepared data//IPCCT2//initial_stocks_all.csv"))
 
 # Map of POLYID per site
 poly.index=data.frame(table(POLYID=site_data_ipcct2$POLYID,site=site_data_ipcct2$site))
@@ -148,6 +151,10 @@ poly.index <- merge(poly.index,initial.stocks,by="site")
 poly.index$init_active_frac=NA
 poly.index$init_slow_frac=NA
 poly.index$init_passive_frac=NA
+
+available.climate<-unique(climate_data_ipcct2$POLYID)
+
+poly.index<-poly.index %>% filter(POLYID %in% available.climate)
 
 write.csv(poly.index,paste0(main.dir,"data//prepared data//IPCCT2//poly_index.csv"),row.names = F)
 
@@ -180,7 +187,7 @@ write.csv(ipcc2.init,paste0(main.dir,"results//IPCCT2//spin up//initial_stocks_i
 
 ## experiment parameters
 ```{r}
-general_name="test2"
+general_name="test3"
 date_on="April2023"
 
 gsa_sample_size=1000
@@ -222,7 +229,7 @@ site_data_driver <- site_data_IPCC2 %>%
   
 ## Subset sites where all info is available
 site_data_driver <- site_data_driver %>% 
-  filter(!is.na(mean_c_input) & !is.na(modelled_SOC) & !is.na(mean_temp) & !is.na(init_active_frac))
+  filter(!is.nan(mean_c_input) & !is.na(mean_c_input) & !is.na(modelled_SOC) & !is.na(mean_temp) & !is.na(init_active_frac))
 
 set.seed(123)
 # Create for groups of Cinput - each represents a quartile of the distribution

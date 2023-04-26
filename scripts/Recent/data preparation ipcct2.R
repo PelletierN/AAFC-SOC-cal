@@ -1,3 +1,9 @@
+site_data_raw=site_data
+cinput.df=cinput
+yield.df=yield
+poly.df=polyids_all
+save.interim.df=FALSE
+interim.df.file=NA
 
 data.prep.ipcct2 <- function (site_data_raw,
                               cinput.df,
@@ -27,7 +33,7 @@ site_data_ipcct2 <- site_data_raw %>%
           yield=mean(yield,na.rm=T),
           irrig=mean(irrig,na.rm=T))
 
-foo <- yield.df %>%
+  foo <- yield.df %>%
   rename(POLYID=SL,
          year=YEAR) %>%
   select(-ECODISTRIC,-PROVINCE) %>%

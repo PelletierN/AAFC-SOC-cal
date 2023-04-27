@@ -90,6 +90,7 @@ correct.fac <- obtain.dsm.correction(stocks.df,dsm_data,merge.key="Exp_ID")
 write.csv(correct.fac,paste0(main.dir,"top30_correction_factors_from_DSM_method.csv"),row.names = F)
 
 raw <- top.SOC.raw(stocks.df)
+naive <- top.SOC.naive(stocks.df,30)
 results <- top.SOC.estimate(stocks.df,correct.fac,30)
 write.csv(results,paste0(main.dir,"data//prepared data//IPCCT2//modelled_stocks_top_30_cm.csv"),row.names = F)
 
@@ -98,30 +99,27 @@ give.n <- function(x){
   return(c(y = median(x)*1.55, label = length(x))) 
    # experiment with the multiplier to find the perfect position
 }
-<<<<<<< HEAD
 
-=======
->>>>>>> 9a4c1efdb07033a6db13f753af12a8ec8224343b
 raw$group="original"
-results$group="corrected"
+naive$group="naive correction"
+results$group="dsm correction"
 
-test <- rbind(raw,results)
+test <- rbind(raw,results,naive)
 
-ggplot(data=test[test$input_type!="15-30 + 7.5-15",],aes(y=modelled_SOC,x=input_type,fill=group))+
+
+SOC_plot <- ggplot(data=test[test$input_type!="15-30 + 7.5-15",],aes(y=modelled_SOC,x=input_type,fill=group))+
   geom_boxplot(alpha=0.6)+
   xlab("measurements available")+
-  ylab("modelled SOC in top 30cm")+
+  ylab("estimated SOC in top 30cm")+
   stat_summary(fun.data = give.n, geom = "text", fun = median,
                position = position_dodge(width = 0.75))+
   theme_minimal()+
   scale_fill_brewer(palette="Set1")+
   theme(axis.text.x = element_text(angle=90),legend.title = element_blank())
-<<<<<<< HEAD
 
-=======
->>>>>>> 9a4c1efdb07033a6db13f753af12a8ec8224343b
+ggsave(plot = SOC_plot,width=15,height=5,units="in",dpi=300, paste0(main.dir,"data//prepared data//IPCCT2//SOC_correction_by_method.png"))
+print()
 ```
-## Rendu ici pour adaptation vers Trt-based process
 
 # Data preperation for IPCCt2 model
 ## Site data preparation

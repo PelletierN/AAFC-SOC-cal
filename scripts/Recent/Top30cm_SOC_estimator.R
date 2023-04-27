@@ -177,3 +177,50 @@ top.SOC.raw <- function(df){
   }
   return(final)
 }
+
+top.SOC.naive <- function(df,depth_cm){
+  df <- df[!is.na(df$soc_tha),]
+  df <- df[df$soc_tha!=0,]
+  
+  for (site in unique(df$site)){
+    sub.df=df[df$site==site,]
+    for (year in unique(sub.df$year)){
+      sub.df2=sub.df[sub.df$year==year,] 
+      type_string=unique(sub.df2$depthID) %>% sort %>% paste(collapse = " + ")
+      TrtID=unique(sub.df2$TrtID)
+      if (length(TrtID)>1){print(paste0("error: more than one treatment ID for stockID --> ",site))}
+      d.max=max(sub.df2$soil_depth_max_cm)
+      res.df=data.frame(depth.min=seq(0,depth_cm-0.5,0.5),
+                        depth.max=seq(0.5,depth_cm,0.5),
+                        measured_c=NA)
+      
+      for (row in 1:nrow(sub.df2)){
+        data=sub.df2[row,]
+        res.df[,row+3]=ifelse(res.df$depth.min>=data$soil_depth_min_cm & res.df$depth.max<=data$soil_depth_max_cm,
+                              data$soc_tha/((data$soil_depth_max_cm-data$soil_depth_min_cm)*2),
+                              NA)
+        
+        res.df <- replace(res.df, res.df==0, NA)
+        
+        res.df$measured_c=rowMeans(data.frame(res.df[,4:length(res.df)]),na.rm=T)
+        
+        # Filling missing values in top / bottom section(s)
+        res.df <- res.df %>%
+        fill(measured_c, .direction = "down")%>%
+        fill(measured_c, .direction = "up")
+        
+        modelled_SOC=sum(res.df$measured_c)
+      }
+      out=data.frame(site,
+                     experiment=sub("\\_.*", "", site),
+                     TrtID,
+                     year,
+                     input_type=type_string,
+                     modelled_SOC)
+      
+      if (site==unique(stocks.df$site)[1] & year==unique(sub.df$year)[1]){final=out } else {final=rbind(final,out)}
+      
+    }
+  }
+  return(final)
+}

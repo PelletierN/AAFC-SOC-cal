@@ -37,9 +37,17 @@ get.stocks <- function(site_data) {
   return (stocks.df)
 }
 
+# Multiple TreatmentID per StockID  
+# --> OK because the treatments are consecutive, affecting the same plot of land/SOC = process with old method
+
+# Multiple StockID per TreatmentID 
+# --> The SOC measurements may have been done on different replicates/variations each year, get a longer time series by combining them
+# --> Replicates of a treatments should be expressed as mean value for the treatment
+
 
 obtain.dsm.correction <- function(stocks.df,dsm_data,merge.key) {
-
+  stocks.df <- stocks.df[!is.na(stocks.df$soc_tha),]
+  stocks.df <- stocks.df[stocks.df$soc_tha!=0,]
 # Join the DSM data to the stocks
 dsm=merge(stocks.df,dsm_data,by=merge.key,left=T) %>%
   select(site,Can_SOC30) %>% 
@@ -71,23 +79,28 @@ return(correct.fac)
 #table(stocks.df$depthID)
 
 # Check the counts of depth measurements by experiment
-#table(stocks.df$depthID,stocks.df$Exp_ID)
+#clipr::write_clip(table(df$depthID,df$Exp_ID))
+
 
 # For debugging...
-#df=stocks.df
+#df=get.stocks(site_data)
 #site=unique(df$site)[63]#[211] #
-#year=1999
+#year=2004
 #depth_cm=30
 
 # Function to estimate 30 cm SOC at all sites and all dates
 top.SOC.estimate <- function(df,correct.fac,depth_cm){
+  df <- df[!is.na(df$soc_tha),]
+  df <- df[df$soc_tha!=0,]
   
   for (site in unique(df$site)){
     sub.df=df[df$site==site,]
     for (year in unique(sub.df$year)){
       sub.df2=sub.df[sub.df$year==year,] 
-      type_string=paste(list(unique(sub.df2$depthID)))
-      
+      type_string=unique(sub.df2$depthID) %>% sort %>% paste(collapse = " + ")
+      TrtID=unique(sub.df2$trt)
+      if (length(TrtID)>1){print(paste0("error: more than one treatment ID for stockID --> ",site))}
+        
       res.df=data.frame(depth.min=seq(0,depth_cm-0.5,0.5),
                         depth.max=seq(0.5,depth_cm,0.5),
                         measured_c=NA)
@@ -107,7 +120,7 @@ top.SOC.estimate <- function(df,correct.fac,depth_cm){
         data=sub.df2[row,]
         res.df[,row+3]=ifelse(res.df$depth.min>=data$soil_depth_min_cm & res.df$depth.max<=data$soil_depth_max_cm,
                               data$soc_tha/((data$soil_depth_max_cm-data$soil_depth_min_cm)*2),
-                              res.df$measured_c)
+                              NA)
       
     res.df <- replace(res.df, res.df==0, NA)
     
@@ -123,6 +136,7 @@ top.SOC.estimate <- function(df,correct.fac,depth_cm){
       }}
     out=data.frame(site,
                    experiment=sub("\\_.*", "", site),
+                   TrtID,
                    year,
                    input_type=type_string,
                    modelled_SOC)
@@ -134,4 +148,52 @@ top.SOC.estimate <- function(df,correct.fac,depth_cm){
   return(final)
 }
 
+### To get raw measures (not corrected for difference with DSM)
+
+top.SOC.raw <- function(df){
+  df <- df[!is.na(df$soc_tha),]
+  df <- df[df$soc_tha!=0,]
+  for (site in unique(df$site)){
+    sub.df=df[df$site==site,]
+    for (year in unique(sub.df$year)){
+      sub.df2=sub.df[sub.df$year==year,] 
+      type_string=unique(sub.df2$depthID) %>% sort %>% paste(collapse = " + ")
+      TrtID=unique(sub.df2$trt)
+      if (length(TrtID)>1){print(paste0("error: more than one treatment ID for stockID --> ",site))}
+      d.max=max(sub.df2$soil_depth_max_cm)
+      res.df=data.frame(depth.min=seq(0,d.max-0.5,0.5),
+                        depth.max=seq(0.5,d.max,0.5),
+                        measured_c=NA)
+      
+      for (row in 1:nrow(sub.df2)){
+        data=sub.df2[row,]
+        res.df[,row+3]=ifelse(res.df$depth.min>=data$soil_depth_min_cm & res.df$depth.max<=data$soil_depth_max_cm,
+                              data$soc_tha/((data$soil_depth_max_cm-data$soil_depth_min_cm)*2),
+                              NA)
+        
+        res.df <- replace(res.df, res.df==0, NA)
+        
+        res.df$measured_c=rowMeans(data.frame(res.df[,4:length(res.df)]),na.rm=T)
+        
+        # Filling missing values in top / bottom section(s)
+        # Can we use the DSM estimation instead?
+        #res.df <- res.df %>%
+        #fill(measured_c, .direction = "down")%>%
+        #fill(measured_c, .direction = "up")
+        
+        modelled_SOC=sum(res.df$measured_c)
+      }
+      out=data.frame(site,
+                     experiment=sub("\\_.*", "", site),
+                     TrtID,
+                     year,
+                     input_type=type_string,
+                     modelled_SOC)
+      
+      if (site==unique(stocks.df$site)[1] & year==unique(sub.df$year)[1]){final=out } else {final=rbind(final,out)}
+      
+    }
+  }
+  return(final)
+}
 

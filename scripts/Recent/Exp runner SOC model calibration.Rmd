@@ -42,13 +42,20 @@ main.dir <- "C://Users//pelletierni//OneDrive - AGR-AGR//Documents//AAFC-SOC-cal
 ## Load data
 ```{r}
 site_data <- read.csv(paste0(main.dir,"data//input data//site data//LTE_Master_beta_apr_18.csv"))
+
 dsm_data<- read.csv(paste0(main.dir,"data//input data//site data//lte_soc_30_cm_dsm_expid.csv"))
+
 climate.dir=paste0(main.dir,"data//input data//climate data//W9param_TablesCleaned")
+
 parameter_bounds <- read.csv(paste0(main.dir,"data//input data//parameter data//ipcct2_parameters_gsa.csv"), stringsAsFactors = FALSE)
+
 yield <- read.csv(paste0(main.dir,"data//input data//c_input//slyield_merged_final.csv"))
+
+cinput <- read.csv(paste0(main.dir,"data//input data//c_input//cninput.csv"))
+
 polyids_all <- read.csv(paste0(main.dir,"data//input data//c_input//exp_location_SLC_linkage.csv")) %>%
   select(Exp_ID,POLYID)
-cinput <- read.csv(paste0(main.dir,"data//input data//c_input//cninput.csv"))
+
 ```
 
 ## Load functions
@@ -82,7 +89,8 @@ stocks.df <- get.stocks(site_data)
 correct.fac <- obtain.dsm.correction(stocks.df,dsm_data,merge.key="Exp_ID")
 write.csv(correct.fac,paste0(main.dir,"top30_correction_factors_from_DSM_method.csv"),row.names = F)
 
-results=top.SOC.estimate(stocks.df,correct.fac,30)
+raw <- top.SOC.raw(stocks.df)
+results <- top.SOC.estimate(stocks.df,correct.fac,30)
 write.csv(results,paste0(main.dir,"data//prepared data//IPCCT2//modelled_stocks_top_30_cm.csv"),row.names = F)
 
 ## plot results
@@ -90,15 +98,20 @@ give.n <- function(x){
   return(c(y = median(x)*1.55, label = length(x))) 
    # experiment with the multiplier to find the perfect position
 }
- 
-ggplot(data=results,aes(y=modelled_SOC,x=input_type))+
-  geom_boxplot()+
+raw$group="original"
+results$group="corrected"
+
+test <- rbind(raw,results)
+
+ggplot(data=test[test$input_type!="15-30 + 7.5-15",],aes(y=modelled_SOC,x=input_type,fill=group))+
+  geom_boxplot(alpha=0.6)+
   xlab("measurements available")+
   ylab("modelled SOC in top 30cm")+
   stat_summary(fun.data = give.n, geom = "text", fun = median,
                position = position_dodge(width = 0.75))+
   theme_minimal()+
-  theme(axis.text.x = element_text(angle=90))
+  scale_fill_brewer(palette="Set1")+
+  theme(axis.text.x = element_text(angle=90),legend.title = element_blank())
 ```
 ## Rendu ici pour adaptation vers Trt-based process
 

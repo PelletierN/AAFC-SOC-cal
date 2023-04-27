@@ -56,7 +56,7 @@ return(correct.fac)
 }
 
 
-
+#test 12-12
 # Check the counts of depth measurements
 #stocks.df$depthID=paste0(stocks.df$soil_depth_min_cm,"-",stocks.df$soil_depth_max_cm)
 #table(stocks.df$depthID)

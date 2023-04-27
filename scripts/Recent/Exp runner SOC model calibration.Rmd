@@ -82,7 +82,8 @@ stocks.df <- get.stocks(site_data)
 correct.fac <- obtain.dsm.correction(stocks.df,dsm_data,merge.key="Exp_ID")
 write.csv(correct.fac,paste0(main.dir,"top30_correction_factors_from_DSM_method.csv"))
 
-results=top.SOC.estimate(stocks.df,correct.fac,30)
+raw <- top.SOC.raw(stocks.df)
+results <- top.SOC.estimate(stocks.df,correct.fac,30)
 write.csv(results,paste0(main.dir,"data//prepared data//IPCCT2//modelled_stocks_top_30_cm.csv"),row.names = F)
 
 ## plot results
@@ -90,15 +91,22 @@ give.n <- function(x){
   return(c(y = median(x)*1.55, label = length(x))) 
    # experiment with the multiplier to find the perfect position
 }
- 
-ggplot(data=results,aes(y=modelled_SOC,x=input_type))+
-  geom_boxplot()+
+
+raw$group="original"
+results$group="corrected"
+
+test <- rbind(raw,results)
+
+ggplot(data=test[test$input_type!="15-30 + 7.5-15",],aes(y=modelled_SOC,x=input_type,fill=group))+
+  geom_boxplot(alpha=0.6)+
   xlab("measurements available")+
   ylab("modelled SOC in top 30cm")+
   stat_summary(fun.data = give.n, geom = "text", fun = median,
                position = position_dodge(width = 0.75))+
   theme_minimal()+
-  theme(axis.text.x = element_text(angle=90))
+  scale_fill_brewer(palette="Set1")+
+  theme(axis.text.x = element_text(angle=90),legend.title = element_blank())
+
 ```
 
 # Data preperation for IPCCt2 model

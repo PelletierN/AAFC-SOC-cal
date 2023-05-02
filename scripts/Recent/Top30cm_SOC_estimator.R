@@ -9,17 +9,17 @@ get.stocks <- function(site_data) {
       site = UniqueStockID,
       year = year_name,
       depthID = paste0(soil_depth_min_cm,"-",soil_depth_max_cm)) %>%
-    select(site,year,Exp_ID,TrtID,soc_tha,soil_depth_min_cm,soil_depth_max_cm,depthID) %>%
+    select(site,year,Exp_ID,location_name,TrtID_Final,soc_tha,soil_depth_min_cm,soil_depth_max_cm,depthID) %>%
     distinct() %>%
     arrange(site,year) %>%
     mutate(soc_tha=as.numeric(soc_tha)) 
   
   missing.SOC.list <- stocks.df %>% 
-    group_by(site) %>% 
+    group_by(TrtID_Final) %>% 
     summarise(mean_soc=mean(soc_tha,na.rm=T)) %>% 
     filter(is.nan(mean_soc)) %>% 
-    select(site)
-  if(nrow(missing.SOC.list)>0){print(paste0("no C stock measurements available for StockID: ",missing.SOC.list$site))}
+    select(TrtID_Final)
+  if(nrow(missing.SOC.list)>0){print(paste0("no C stock measurements available for treatment: ",missing.SOC.list$TrtID_Final))}
   
   # remove NAs
   stocks.df <- stocks.df %>%
@@ -33,19 +33,21 @@ obtain.dsm.correction <- function(stocks.df,dsm_data,merge.key) {
 
 # Join the DSM data to the stocks
 dsm=merge(stocks.df,dsm_data,by=merge.key,left=T) %>%
-  select(site,Can_SOC30) %>% 
-  group_by(site) %>%
+  select(location_name,Can_SOC30) %>% 
+  group_by(location_name) %>%
   summarise(Can_SOC30=mean(Can_SOC30))
 
 ## Get correction factors for top 30 cm for each Exp_ID and create QA flag
 correct.fac <- stocks.df %>%
-  merge(dsm,by=c("site"),left=T) %>%
+  merge(dsm,by=merge.key,left=T) %>%
   mutate(dif=soc_tha-Can_SOC30,min=soil_depth_min_cm,max=soil_depth_max_cm) %>%
-  group_by(site,depthID) %>%
+  group_by(location_name,depthID) %>%
   arrange(year) %>%
   slice(1) %>%
-  group_by(depthID,Exp_ID,min,max) %>%
-  summarise(SOC_correction_mean=mean(dif,na.rm=T)*-1,SOC_correction_median=median(dif,na.rm=T)*-1) %>%
+  group_by(depthID,location_name,min,max) %>%
+  summarise(SOC_correction_mean=mean(dif,na.rm=T)*-1,
+            SOC_correction_median=median(dif,na.rm=T)*-1,
+            .groups="keep") %>%
   filter(!is.na(SOC_correction_mean)) %>%
   mutate(QA_flag1=case_when(min==0 & max<30 & SOC_correction_mean>0 ~ 1,
                             min==0 & max<30 & SOC_correction_mean<0 ~ 0,
@@ -67,7 +69,7 @@ return(correct.fac)
 # For debugging...
 #df=stocks.df
 #site=unique(df$site)[63]#[211] #
-#year=1999
+#year=2004
 #depth_cm=30
 
 # Function to estimate 30 cm SOC at all sites and all dates
@@ -80,7 +82,7 @@ top.SOC.estimate <- function(df,correct.fac,depth_cm){
     for (year in unique(sub.df$year)){
       sub.df2=sub.df[sub.df$year==year,] 
       type_string=unique(sub.df2$depthID) %>% sort %>% paste(collapse = " + ")
-      TrtID=unique(sub.df2$TrtID)
+      TrtID=unique(sub.df2$TrtID_Final)
       
       res.df=data.frame(depth.min=seq(0,depth_cm-0.5,0.5),
                         depth.max=seq(0.5,depth_cm,0.5),
@@ -90,9 +92,8 @@ top.SOC.estimate <- function(df,correct.fac,depth_cm){
       if (sub.df2[1,]$soil_depth_min_cm==0 & sub.df2[1,]$soil_depth_max_cm>depth_cm | # Catch cases with measurements exceeding the target depth increment
           max(sub.df2$soil_depth_max_cm)<depth_cm) { # Catch cases with measurements short of the target depth increment
         
-        cor.sub=correct.fac %>% filter(Exp_ID==sub.df2[1,]$Exp_ID, min==sub.df2[1,]$soil_depth_min_cm, max==sub.df2[1,]$soil_depth_max_cm)
+        cor.sub=correct.fac %>% filter(location_name==sub.df2[1,]$location_name, min==sub.df2[1,]$soil_depth_min_cm, max==sub.df2[1,]$soil_depth_max_cm)
         if (is.na(cor.sub[1,]$QA_flag1)) {
-          print(paste0("missing DSM data for Exp_ID = ",sub.df[1,]$Exp_ID))
           modelled_SOC= sub.df2[1,]$soc_tha
         } else if (cor.sub[1,]$QA_flag1==1) {modelled_SOC= sub.df2[1,]$soc_tha + cor.sub[1,]$SOC_correction_mean} else {modelled_SOC= sub.df2[1,]$soc_tha}
         

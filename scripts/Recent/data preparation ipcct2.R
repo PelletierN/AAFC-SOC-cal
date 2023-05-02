@@ -26,8 +26,8 @@ site_data_ipcct2 <- site_data_raw %>%
   rowwise() %>% mutate(
     cinput = sum(as.numeric(as.character(crop_residue_kgha))*0.001, as.numeric(as.character(roots_residue_kgha))*0.001, as.numeric(as.character(above_ground_residue_kgha))*0.001,na.rm=T),
     yield = sum(as.numeric(as.character(grain_yield_kgha))*0.001, as.numeric(as.character(hay_yield_kgha))*0.001,na.rm=T)) %>%
-  select(site,Exp_ID,POLYID,TrtID,year,sand,cinput,yield,till,irrig,AAFC_code) %>%
-  group_by(site,POLYID,Exp_ID,TrtID,year,AAFC_code,till) %>% #Get mean values when multiple depth measurements are available
+  select(site,Exp_ID,POLYID,TrtID_Final,year,sand,cinput,yield,till,irrig,AAFC_code) %>%
+  group_by(site,POLYID,Exp_ID,TrtID_Final,year,AAFC_code,till) %>% #Get mean values when multiple depth measurements are available
   summarise(sand=mean(sand,na.rm=T),
           cinput=mean(cinput,na.rm=T),
           yield=mean(yield,na.rm=T),
@@ -69,7 +69,7 @@ test <- yield.df %>% left_join(cinput.df %>% rename(AAFC_code_adapted=crop_aafc)
 # Remove the treatments containing perennial crops
 perenials=c("CLOVER","CLOV","CWG+HAY","ALFALFA","OHAYFD")
 
-annual_crops <- test %>% group_by(TrtID) %>%
+annual_crops <- test %>% group_by(TrtID_Final) %>%
   mutate(contains_peren = ifelse(any(AAFC_code_adapted %in% perenials),TRUE,FALSE)) %>%
   ungroup %>%
   filter(contains_peren ==FALSE) %>%
@@ -77,7 +77,7 @@ annual_crops <- test %>% group_by(TrtID) %>%
 
 # Use available SLC yield table data to fill treatments with no yield data
 
-annual_crops <-  annual_crops %>% group_by(TrtID) %>%
+annual_crops <-  annual_crops %>% group_by(TrtID_Final) %>%
   mutate(some_yield = ifelse(any(!is.na(yield)),TRUE,FALSE)) %>%
   mutate(AdjProd_t=ifelse(is.na(yield) & some_yield==FALSE,pred_yield/1000,yield)) %>%
   ungroup()
@@ -106,7 +106,7 @@ for (i in unique(annual_crops$site)){
            Exp_ID = first(Exp_ID)) %>%
     fill(till,.direction="down") %>%
     fill(sand,.direction="down") %>%
-    fill(TrtID,.direction="down") %>%
+    fill(TrtID_Final,.direction="down") %>%
     mutate(irrig = na_interpolation(irrig)) 
   if (!exists("interpolated.df")) {interpolated.df=int.df2} else {interpolated.df=rbind(interpolated.df,int.df2)}
 }
@@ -143,7 +143,7 @@ interpolated.df <- interpolated.df %>%
 
 ipcct2.out=data.frame(
   site=interpolated.df$site,
-  TrtID=interpolated.df$TrtID,
+  TrtID_Final=interpolated.df$TrtID_Final,
   POLYID=interpolated.df$POLYID,
   year=interpolated.df$year,
   sand=interpolated.df$sand,

@@ -66,6 +66,9 @@ source(paste0(main.dir,"scripts//Recent//ipcct2_SOCTier2Model.r")) # IPCC tier 2
 source(paste0(main.dir,"scripts//Recent//Spinnup IPCCT2.R")) # Model initiation for IPCCt2
 source(paste0(main.dir,"scripts//Recent//sensitivity analysis IPCCT2.R")) # GSA function for IPCCt2
 source(paste0(main.dir,"scripts//Recent//SIR IPCCT2.R")) # SIR function to obtain posterior distribution
+source(paste0(main.dir,"scripts/Recent/create run map.R")) # Treatment-stocks map to run the experiment
+source(paste0(main.dir,"scripts/Recent/predictor ippct2.R")) # Final preparation step for the ipcct2 model
+source(paste0(main.dir,"scripts/Recent/Summary fit statistics.r")) # Get summary fit statistics from observed vs predicted values
 ```
 
 ## Create folder structure
@@ -81,8 +84,20 @@ for (i in folders_needed){
 }
 ```
 
+# Data preperation for IPCCt2 model
 
-## Convert all SOC measurements to top 30cm equivalent
+## Step 1: clean, homogenize and prepare datasets
+- Conversion of SOC to top 30 cm equivalent
+
+- Preparation of site data
+  --> features selection
+  --> unit conversions
+  --> C input estimation from data or yield
+  --> interpolation of missing data in time series
+  
+- Preparation of climate data
+
+### Convert all SOC measurements to top 30cm equivalent
 ```{r eval=FALSE, include=TRUE}
 stocks.df <- get.stocks(site_data)
 #table(stocks.df$Exp_ID)
@@ -106,7 +121,6 @@ results$group="dsm correction"
 
 test <- rbind(raw,results,naive)
 
-
 SOC_plot <- ggplot(data=test[test$input_type!="15-30 + 7.5-15",],aes(y=modelled_SOC,x=input_type,fill=group))+
   geom_boxplot(alpha=0.6)+
   xlab("measurements available")+
@@ -121,8 +135,7 @@ ggsave(plot = SOC_plot,width=15,height=5,units="in",dpi=300, paste0(main.dir,"da
 print(SOC_plot)
 ```
 
-# Data preperation for IPCCt2 model
-## Site data preparation
+### Site data preparation
 ```{r}
 # Site data
 site_data_ipcct2 <- data.prep.ipcct2(site_data_raw=site_data,
@@ -135,48 +148,66 @@ site_data_ipcct2 <- data.prep.ipcct2(site_data_raw=site_data,
 write.csv(site_data_ipcct2,paste0(main.dir,"data//prepared data//IPCCT2//sites_prepared_ipcct2.csv"),row.names = F)
 ```
 
-## Climate data preperation
+### Climate data preperation
 ```{r}
 climate_data_ipcct2 <- data.prep.climate(climate.dir)
 
 write.csv(climate_data_ipcct2,paste0(main.dir,"data//prepared data//IPCCT2//climate_prepared_ipcct2.csv"),row.names = F)
 ```
 
-## Create the "initial" C stocks dataset (first C stock measurement at each StockID)
+## End of step 1 for data preparation
+
+
+# Start of the experiments
+
+## experiment parameters
 ```{r}
-stocks.df <-read.csv(paste0(main.dir,"data//prepared data//IPCCT2//modelled_stocks_top_30_cm.csv"))
+general_name="test4"
+date_on="May2023"
 
-initial.stocks <- stocks.df %>%
-  group_by(site) %>%
-  arrange(year) %>%
-  slice(1)
+gsa_sample_size=50
+SIR_sample_size=100
+SIR_resample_size=10
 
-write.csv(initial.stocks,paste0(main.dir,"data//prepared data//IPCCT2//initial_stocks_all.csv"),row.names = F)
+Experiment_name=paste0(general_name,"_",date_on,"_GSA ",gsa_sample_size,"_SIR ",SIR_sample_size,"To",SIR_resample_size)
+
+folders_needed=c(paste0(main.dir,"data//prepared data//",Experiment_name),
+                paste0(main.dir,"data//prepared data//",Experiment_name,"//IPCCT2"),
+                paste0(main.dir,"results//",Experiment_name),
+                paste0(main.dir,"results//",Experiment_name,"//IPCCT2"),
+                paste0(main.dir,"results//",Experiment_name,"//IPCCT2//GSA"),
+                paste0(main.dir,"results//",Experiment_name,"//IPCCT2//SIR"))
+
+for (i in folders_needed){
+ ifelse(dir.exists(i),FALSE, dir.create(i))
+}
 ```
 
-Get initial C stocks for each pool (model initiation)
-```{r}
-# Read the dataset created previously
+## experiment preparation
+
+### Prepared data load
+```{r eval=FALSE, include=FALSE}
+stocks.df <-read.csv(paste0(main.dir,"data//prepared data//IPCCT2//modelled_stocks_top_30_cm.csv"))
+site_data_ipcct2=read.csv(paste0(main.dir,"data//prepared data//IPCCT2//sites_prepared_ipcct2.csv"))
 climate_data_ipcct2 <- read.csv(paste0(main.dir,"data//prepared data//IPCCT2//climate_prepared_ipcct2.csv"))
-site_data_ipcct2 <- read.csv(paste0(main.dir,"data//prepared data//IPCCT2//sites_prepared_ipcct2.csv"))
-initial.stocks<- read.csv(paste0(main.dir,"data//prepared data//IPCCT2//initial_stocks_all.csv"))
+```
 
-# Map of POLYID per site
-poly.index=data.frame(table(POLYID=site_data_ipcct2$POLYID,site=site_data_ipcct2$site))
-poly.index[poly.index$Freq>0,] -> poly.index
-poly.index <- merge(poly.index,initial.stocks,by="site")
+### Make a run map
+```{r}
+RunMap.ini <- run.map(site_data_ipcct2=site_data_ipcct2,
+                stocks.df=stocks.df,
+                dsm_data=dsm_data)
+RunMap.ini <- RunMap.ini %>% merge(polyids_all,by="Exp_ID")
 
-#Add columns where initial C stocks per pool will be saved
-poly.index$init_active_frac=NA
-poly.index$init_slow_frac=NA
-poly.index$init_passive_frac=NA
+RunMap.ini$init_active=NA
+RunMap.ini$init_slow=NA
+RunMap.ini$init_passive=NA
+RunMap.ini$mean_c_input=NA
+RunMap.ini$RunIndex=NA
+```
 
-available.climate<-unique(climate_data_ipcct2$POLYID)
-
-poly.index<-poly.index %>% filter(POLYID %in% available.climate)
-
-write.csv(poly.index,paste0(main.dir,"data//prepared data//IPCCT2//poly_index.csv"),row.names = F)
-
+### Fill the run map with initial C data and initiate the model (split SOC in pools)
+```{r}
 # Default parameters for IPCCt2
 params.default=data.frame(tillfac_FT = 3.036,
          tillfac_RT = 2.075,
@@ -197,83 +228,54 @@ params.default=data.frame(tillfac_FT = 3.036,
          topt       = 33.69,
          plig       = 3)
 
-ipcc2.init= initiate.ipcc2(poly.index,params=params.default)
+RunMap<- initiate.ipcc2(index.df=RunMap.ini,
+                      params=params.default,
+                      climate_data_ipcct2= climate_data_ipcct2)
 
-write.csv(ipcc2.init,paste0(main.dir,"results//IPCCT2//spin up//initial_stocks_ipcct2.csv"),row.names = F)
+
 ```
 
-# Start of the experiments
 
-## experiment parameters
+### Split calibration and evaluation datasets
 ```{r}
-general_name="test3"
-date_on="April2023"
-
-gsa_sample_size=1000
-SIR_sample_size=100000
-SIR_resample_size=1000
-
-Experiment_name=paste0(general_name,"_",date_on,"_GSA ",gsa_sample_size,"_SIR ",SIR_sample_size,"To",SIR_resample_size)
-
-folders_needed=c(paste0(main.dir,"data//prepared data//",Experiment_name),
-                paste0(main.dir,"data//prepared data//",Experiment_name,"//IPCCT2"),
-                paste0(main.dir,"results//",Experiment_name),
-                paste0(main.dir,"results//",Experiment_name,"//IPCCT2"),
-                paste0(main.dir,"results//",Experiment_name,"//IPCCT2//GSA"),
-                paste0(main.dir,"results//",Experiment_name,"//IPCCT2//SIR"))
-
-for (i in folders_needed){
- ifelse(dir.exists(i),FALSE, dir.create(i))
-}
-```
-
-## 
-```{r}
-climate_data <- read.csv(paste0(main.dir,"data//prepared data//IPCCT2//climate_prepared_ipcct2.csv"))
-site_data_IPCC2 <- read.csv(paste0(main.dir,"data//prepared data//IPCCT2//sites_prepared_ipcct2.csv"))
-initial_c <- read.csv(paste0(main.dir,"results//IPCCT2//spin up//initial_stocks_ipcct2.csv"))
-parameter_bounds <- read.csv(paste0(main.dir,"data//input data//parameter data//ipcct2_parameters_gsa.csv"), stringsAsFactors = FALSE)
-stocks_data <- read.csv(paste0(main.dir,"data//prepared data//IPCCT2//modelled_stocks_top_30_cm.csv"))
-poly.index <- read.csv(paste0(main.dir,"data//prepared data//IPCCT2//poly_index.csv"))
-
-# Get mean annual temperature for each polygon (just to identify missing data later on)
-climate.avg=climate_data %>% group_by(POLYID) %>% summarise(mean_temp=mean(tavg,na.rm=T))
-
-# Calibration - validation split
-site_data_driver <- site_data_IPCC2 %>%
-  group_by(site,till,POLYID) %>%
-  summarise (mean_c_input= mean(cinput,na.rm=T)) %>%
-  merge(initial_c, by=c("site","POLYID"),all=T) %>%
-  merge(climate.avg, by=("POLYID"))
-  
-## Subset sites where all info is available
-site_data_driver <- site_data_driver %>% 
-  filter(!is.nan(mean_c_input) & !is.na(mean_c_input) & !is.na(modelled_SOC) & !is.na(mean_temp) & !is.na(init_active_frac))
-
+RunMap<- read.csv(paste0(main.dir,
+                                      "data//prepared data//",
+                                      Experiment_name,
+                                      "//RunMap.csv"))
 set.seed(123)
 # Create for groups of Cinput - each represents a quartile of the distribution
-site_data_driver$c_input_group <- ntile(site_data_driver$mean_c_input, 4)  
+
+RunMap$c_input_group <- ntile(RunMap$mean_c_input, 4)  
 
 # Balanced split for different drivers
-trainIndex <- caret::createDataPartition(c(site_data_driver$till,site_data_driver$c_input_group), p = .9, 
-                                  list = FALSE, 
-                                  times = 1)
+trainIndex <- caret::createDataPartition(c(RunMap$till,RunMap$c_input_group), p = .75, 
+                                         list = FALSE, 
+                                         times = 1)
 
-calibration_sites <- site_data_driver[ trainIndex,]$site
-evaluation_sites <- site_data_driver[-trainIndex,]$site
+calibration_sites <- RunMap[ trainIndex,]
+evaluation_sites <- RunMap[-trainIndex,]
 
-calibration_data <- site_data_IPCC2 %>%
-  filter(site %in% calibration_sites)
+write.csv(calibration_sites,file=paste0(main.dir,
+                                      "data//prepared data//",
+                                      Experiment_name,
+                                      "//RunMap_cal.csv"),row.names=F)
+write.csv(evaluation_sites,file=paste0(main.dir,
+                                      "data//prepared data//",
+                                      Experiment_name,
+                                      "//RunMap_val.csv"),row.names=F)
+```
 
-evaluation_data <- site_data_IPCC2 %>%
-  filter(site %in% evaluation_sites)
+### Create the final site predictor datasets for IPCCt2
+```{r}
+calibration_site_predictor<-predictor.ipcct2(calibration_sites %>% filter(!is.na(Exp_ID)))
+evaluation_site_predictor<-predictor.ipcct2(evaluation_sites %>% filter(!is.na(Exp_ID)))
 
 # Save to file
-write.csv(calibration_data,file=paste0(main.dir,
+write.csv(calibration_site_predictor,file=paste0(main.dir,
                                        "data//prepared data//",
                                        Experiment_name,
                                        "//IPCCT2//site_data_calibration.csv"),row.names=F)
-write.csv(evaluation_data,file=paste0(main.dir,
+write.csv(evaluation_site_predictor,file=paste0(main.dir,
                                       "data//prepared data//",
                                       Experiment_name,
                                       "//IPCCT2//site_data_evaluation.csv"),row.names=F)
@@ -285,10 +287,11 @@ gsa_method="soboljansen"
 
 return_si <- run.GSA.IPCCT2(main.dir=main.dir,
                             parameter_bounds=parameter_bounds,
-                            calibration_data=calibration_data,
-                            stocks_data=stocks_data,
-                            climate_data = climate_data, 
-                            initial_c=initial_c,
+                            calibration_data=calibration_site_predictor,
+                            stocks_data=stocks.df,
+                            climate_data = climate_data_ipcct2, 
+                            #initial_c=initial_c,
+                            RunMap=RunMap,
                             method=gsa_method,
                             sample_size=gsa_sample_size)
 
@@ -365,10 +368,10 @@ calibration_data=read.csv(paste0(main.dir,
 
 posterior.distribution <- run.SIR.IPCCT2(main.dir=main.dir,
                          parameter.df=X,
-                         stocks.df=stocks_data,
+                         stocks.df=stocks.df,
                          calibration.df=calibration_data,
-                         climate_data=climate_data,
-                         initial_c=initial_c,
+                         climate_data=climate_data_ipcct2,
+                         RunMap=RunMap,
                          sample_size=SIR_sample_size,
                          resample_size=SIR_resample_size)
 
@@ -406,19 +409,21 @@ write.csv(sir_table ,paste0(main.dir,"results//",Experiment_name,"//IPCCT2//SIR/
 ## Graphing:
 
 prior <- X %>%
-  reshape2::melt(id.vars="SampleID")
+  reshape2::melt(id.vars="SampleID") %>%
+  mutate(distribution="prior")
+
 posterior <- posterior.distribution %>%
-  reshape2::melt(id.vars="SampleID")
+  reshape2::melt(id.vars="SampleID") %>%
+  mutate(distribution="posterior")
+
+df.plot <- rbind(prior,posterior) %>%
+  filter(variable %in% sensitive_params$params)
+  
 
 sir_graph <- ggplot() +
-  geom_density(data = posterior, aes(value), col = NA, fill = "red", alpha = 0.2) +
-  geom_density(data = prior, aes(value), col = NA, fill = "blue", alpha = 0.2) +
+  geom_density(data = df.plot, aes(value,fill=distribution), col = NA, alpha = 0.5) +
   facet_wrap(~variable, scales = "free", ncol = 3) +
-  theme_bw() +
-  theme(panel.border = element_rect(colour = "black", fill = NA), panel.grid.major = element_blank(),
-        axis.title.x=element_blank(),panel.grid.minor = element_blank()) +
-  scale_y_continuous(expand = c(0,0)) + scale_x_continuous(expand = c(0,0)) +
-  theme(aspect.ratio=1)
+  theme_classic()
 
 print(sir_graph)
 ggsave(plot = sir_graph, paste0(main.dir,"results//",Experiment_name,"//IPCCT2//SIR//SIR_distributions.png"))
@@ -441,16 +446,16 @@ parameters_prior <- parameter_bounds %>% select(Parameter,value) %>% pivot_wider
 test.post <- run.IPCCT2.parralel(main.dir=main.dir,
                            parameter.df=parameters_post,
                            evaluation.df=evaluation_data,
-                           stocks.df=stocks_data,
-                           climate_data=climate_data,
-                           initial_c=initial_c)
+                           stocks.df=stocks.df,
+                           climate_data=climate_data_ipcct2,
+                           RunMap=RunMap)
 
 test.prior <- run.IPCCT2.parralel(main.dir=main.dir,
                            parameter.df=parameters_prior,
                            evaluation.df=evaluation_data,
-                           stocks.df=stocks_data,
-                           climate_data=climate_data,
-                           initial_c=initial_c)
+                           stocks.df=stocks.df,
+                           climate_data=climate_data_ipcct2,
+                           RunMap=RunMap)
 
 summary.fit.calibration <- test.prior %>%
   rename(soc_modelled_prior=soc_total) %>%
@@ -502,6 +507,7 @@ res6 <- data.frame(test="cumul_SOC_posterior",
                                                summary.fit.calibration$cum_actual)))
 
 final <- rbind(res1,res2,res3,res4,res5,res6)
+print(final)
 ```
 
 

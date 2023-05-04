@@ -4,21 +4,47 @@
 ## Nicolas Pelletier (nicolas.pelletier@agr.gc.ca)
 
 ## Date: April 2023
+## modified may 2023 to run with the treatment run map
 
-initiate.ipcc2<- function (index.df,params){
-   poly.index=index.df
-  for (i in 1:nrow(poly.index)){
-  site.in=as.character(poly.index[i,]$site)
-  POLYID.in=as.character(poly.index[i,]$POLYID)
-  initial_year=poly.index[i,]$year
-  initial_soc=poly.index[i,]$modelled_SOC
+initiate.ipcc2 <- function (index.df,params,climate_data_ipcct2){
+   
+  poly.index=index.df
+  
+   for (i in 1:nrow(poly.index)){
     
-  #Extract mean Cinput from first ten years of data
-  #!# probably need to change the first year of spin up to the first year with C stock measurement 
-  site.df=subset(site_data_ipcct2,site_data_ipcct2$site==site.in) %>%
+  RunBy=as.character(poly.index[i,]$RunBy)
+  initial_year=poly.index[i,]$first.year
+  initial_soc=poly.index[i,]$initial.SOC.impute
+  POLYID.in=as.character(poly.index[i,]$POLYID)
+  
+  if (RunBy=="treatment"){
+    trt.on <- poly.index[i,]$TrtID_Final
+    label=trt.on
+    site.df=subset(site_data_ipcct2,site_data_ipcct2$TrtID_Final==trt.on) %>%
+      group_by(year) %>%
+      summarise(site=first(site),
+                TrtID_Final=first(TrtID_Final),
+                POLYID=first(POLYID),
+                sand=first(sand),
+                cinput=mean(cinput,na.rm=T),
+                ligfrac=first(ligfrac),
+                nfrac=first(nfrac),
+                till=first(till),
+                irrig=first(irrig))
+  }
+  if (RunBy=="stock"){
+    site.on <- poly.index[i,]$UniqueStockID
+    label=site.on
+    site.df=subset(site_data_ipcct2,site_data_ipcct2$site==site.on) 
+  }
+  
+  mean_c_input <- mean(site.df$cinput,na.rm=T)
+  
+  site.df <- site.df%>%
     arrange(year) %>%
     slice(1:10) %>%
     summarise(site=first(site),
+              TrtID_Final=first(TrtID_Final),
               POLYID=first(POLYID),
               year=first(year),
               sand=first(sand),
@@ -27,23 +53,29 @@ initiate.ipcc2<- function (index.df,params){
               nfrac=first(nfrac),
               till=first(till),
               irrig=first(irrig))
+
   
-  if (site.df[1,]$year>=1981+9){
+
+    
+  #Extract mean Cinput from first ten years of data
+
+  if (initial_year>=1981+9){ # Process if we have 10 years of climate data to initiate the model
   climate.df=subset(climate_data_ipcct2,climate_data_ipcct2$POLYID==POLYID.in) %>%
     arrange(year,month) %>%
-    filter(year<=site.df[1,]$year) %>%
-    filter(year>=site.df[1,]$year-10) %>%
+    filter(year<=initial_year) %>%
+    filter(year>=initial_year-10) %>%
     group_by(month) %>%
-    summarise(year=site.df[1,]$year,
+    summarise(year=initial_year,
               tavg = mean(tavg),
               mappet = mean(mappet),
               irrig = mean(irrig))
-  } else {
+  
+  } else { # Process if experiment started too early and we don't have climate data (use climate normal)
     climate.df=subset(climate_data_ipcct2,climate_data_ipcct2$POLYID==POLYID.in) %>%
       arrange(year,month) %>%
-      filter(year<=1991) %>%
+      #filter(year<=1991) %>%
       group_by(month) %>%
-      summarise(year=site.df[1,]$year,
+      summarise(year=initial_year,
                 tavg = mean(tavg),
                 mappet = mean(mappet),
                 irrig = mean(irrig))
@@ -66,10 +98,16 @@ initiate.ipcc2<- function (index.df,params){
     
 
   # calculate steady state pool size
-    poly.index[i,]$init_active_frac <- ss.frac[[1]]*initial_soc
-    poly.index[i,]$init_slow_frac <- ss.frac[[2]]*initial_soc
-    poly.index[i,]$init_passive_frac <- ss.frac[[3]]*initial_soc
+    poly.index[i,]$init_active <- ss.frac[1,]$init_active_frac*initial_soc
+    poly.index[i,]$init_slow <- ss.frac[1,]$init_slow_frac*initial_soc
+    poly.index[i,]$init_passive <- ss.frac[1,]$init_passive_frac*initial_soc
+    
+    rm(climate.df)
+    
+    poly.index[i,]$mean_c_input=mean_c_input
+    poly.index[i,]$RunIndex=paste0(RunBy,"_",label)
 
   }
    return(poly.index)
-   }
+}
+

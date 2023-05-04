@@ -82,7 +82,7 @@ top.SOC.estimate <- function(df,correct.fac,depth_cm){
     for (year in unique(sub.df$year)){
       sub.df2=sub.df[sub.df$year==year,] 
       type_string=unique(sub.df2$depthID) %>% sort %>% paste(collapse = " + ")
-      TrtID=unique(sub.df2$TrtID_Final)
+      TrtID_Final=unique(sub.df2$TrtID_Final)
       
       res.df=data.frame(depth.min=seq(0,depth_cm-0.5,0.5),
                         depth.max=seq(0.5,depth_cm,0.5),
@@ -118,7 +118,7 @@ top.SOC.estimate <- function(df,correct.fac,depth_cm){
       }}
     out=data.frame(site,
                    experiment=sub("\\_.*", "", site),
-                   TrtID,
+                   TrtID_Final,
                    year,
                    input_type=type_string,
                    modelled_SOC)
@@ -140,8 +140,8 @@ top.SOC.raw <- function(df){
     for (year in unique(sub.df$year)){
       sub.df2=sub.df[sub.df$year==year,] 
       type_string=unique(sub.df2$depthID) %>% sort %>% paste(collapse = " + ")
-      TrtID=unique(sub.df2$TrtID)
-      if (length(TrtID)>1){print(paste0("error: more than one treatment ID for stockID --> ",site))}
+      TrtID_Final=unique(sub.df2$TrtID_Final)
+      if (length(TrtID_Final)>1){print(paste0("error: more than one treatment ID for stockID --> ",site))}
       d.max=max(sub.df2$soil_depth_max_cm)
       res.df=data.frame(depth.min=seq(0,d.max-0.5,0.5),
                         depth.max=seq(0.5,d.max,0.5),
@@ -167,7 +167,7 @@ top.SOC.raw <- function(df){
       }
       out=data.frame(site,
                      experiment=sub("\\_.*", "", site),
-                     TrtID,
+                     TrtID_Final,
                      year,
                      input_type=type_string,
                      modelled_SOC)
@@ -188,8 +188,8 @@ top.SOC.naive <- function(df,depth_cm){
     for (year in unique(sub.df$year)){
       sub.df2=sub.df[sub.df$year==year,] 
       type_string=unique(sub.df2$depthID) %>% sort %>% paste(collapse = " + ")
-      TrtID=unique(sub.df2$TrtID)
-      if (length(TrtID)>1){print(paste0("error: more than one treatment ID for stockID --> ",site))}
+      TrtID_Final=unique(sub.df2$TrtID_Final)
+      if (length(TrtID_Final)>1){print(paste0("error: more than one treatment ID for stockID --> ",site))}
       d.max=max(sub.df2$soil_depth_max_cm)
       res.df=data.frame(depth.min=seq(0,depth_cm-0.5,0.5),
                         depth.max=seq(0.5,depth_cm,0.5),
@@ -214,7 +214,7 @@ top.SOC.naive <- function(df,depth_cm){
       }
       out=data.frame(site,
                      experiment=sub("\\_.*", "", site),
-                     TrtID,
+                     TrtID_Final,
                      year,
                      input_type=type_string,
                      modelled_SOC)

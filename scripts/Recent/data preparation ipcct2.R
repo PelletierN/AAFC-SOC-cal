@@ -1,10 +1,3 @@
-site_data_raw=site_data
-cinput.df=cinput
-yield.df=yield
-poly.df=polyids_all
-save.interim.df=FALSE
-interim.df.file=NA
-
 data.prep.ipcct2 <- function (site_data_raw,
                               cinput.df,
                               yield.df,
@@ -31,7 +24,8 @@ site_data_ipcct2 <- site_data_raw %>%
   summarise(sand=mean(sand,na.rm=T),
           cinput=mean(cinput,na.rm=T),
           yield=mean(yield,na.rm=T),
-          irrig=mean(irrig,na.rm=T))
+          irrig=mean(irrig,na.rm=T),
+          .groups="keep")
 
   foo <- yield.df %>%
   rename(POLYID=SL,

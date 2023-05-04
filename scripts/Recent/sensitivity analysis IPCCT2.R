@@ -16,7 +16,14 @@ library(purrr)
 library(tidyverse)
 library(ggplot2)
 
-run.GSA.IPCCT2 <- function(main.dir,parameter_bounds,stocks_data,calibration_data,climate_data,initial_c,method,sample_size) {
+run.GSA.IPCCT2 <- function(main.dir,
+                           parameter_bounds,
+                           stocks_data,
+                           calibration_data,
+                           RunMap,
+                           climate_data,
+                           method,
+                           sample_size) {
   # read prior distribution from a csv file
   # (Required columns: Parameter, value, lower, upper)
   paramBounds <- parameter_bounds %>%
@@ -110,14 +117,14 @@ run.GSA.IPCCT2 <- function(main.dir,parameter_bounds,stocks_data,calibration_dat
     
   }
   
-  site.list=unique(calibration_data$site)
+  RunIndex.list=unique(calibration_data$RunIndex)
   
   n_clust=detectCores()
   cl <- makeCluster(n_clust-4)
   registerDoParallel(cl)
   
-  df_par <- foreach(site=site.list, .combine=rbind,  .inorder=TRUE) %dopar% {
-  
+  df_par <- foreach(RunIndex=RunIndex.list, .combine=rbind,  .inorder=TRUE) %dopar% {
+    
     library(caret)
     library(dplyr)
     library(sensitivity)
@@ -144,59 +151,72 @@ run.GSA.IPCCT2 <- function(main.dir,parameter_bounds,stocks_data,calibration_dat
     }
     
   for (i in 1:nrow(X)){
-    site.sub=calibration_data[calibration_data$site==site,] %>%
+    RunIndex.sub=calibration_data[calibration_data$RunIndex==RunIndex,] %>%
       arrange(year) %>%
       distinct() %>%
       mutate(Diff = year -lag(year)) %>%
       replace_na(list(Diff=0))
     
     ## Address discontinuity in data ## Needs to be improved to interpolate gap in time series, now it just cut the time series when incomplete
-    if (any(site.sub$Diff>1)) {
-      problems=site.sub[site.sub$Diff>1,]
-      site.sub <- site.sub %>% 
-        slice(1:min(as.numeric(row.names(problems))-1))
-    }
+    # Edit May 2023, should not be neede now
+    #if (any(RunIndex.sub$Diff>1)) {
+      #problems=RunIndex.sub[RunIndex.sub$Diff>1,]
+      #RunIndex.sub <- RunIndex.sub %>% 
+        #slice(1:min(as.numeric(row.names(problems))-1))
+    #}
     
     parameters = X[i,]
     
-    init.df <- initial_c[initial_c$site==site,]
+    init.df <- RunMap[RunMap$RunIndex==RunIndex,]
     
     init_active = init.df[1,]$init_active
     init_slow = init.df[1,]$init_slow
     init_passive = init.df[1,]$init_passive
     
-    climate_in <- climate_data[climate_data$POLYID==site.sub[1,]$POLYID,]
+    climate_in <- climate_data[climate_data$POLYID==init.df [1,]$POLYID,]
     
     climate_normal <- climate_in %>% group_by(month) %>% summarise_all(mean) %>% select(month,tavg,mappet,irrig)
     
-    if (min(site.sub$year)<1981){
-      climate_int <- data.frame(POLYID=site.sub[1,]$POLYID,
-                                year=rep(min(site.sub$year):1980, each=12),
-                                month= rep(1:12,1981-min(site.sub$year))) %>%
-                                  merge(climate_normal,by=("month"))
+    if (min(RunIndex.sub$year)<1981){
+      climate_int <- data.frame(POLYID=RunIndex.sub[1,]$POLYID,
+                                year=rep(min(RunIndex.sub$year):1980, each=12),
+                                month= rep(1:12,1981-min(RunIndex.sub$year))) %>%
+                                  merge(climate_normal,by="month")
       climate_in <- rbind(climate_int,climate_in)
     }
     
     
-    modelled <- IPCCTier2SOMmodel(SiteData= site.sub,
+    modelled <- IPCCTier2SOMmodel(SiteData= RunIndex.sub,
                                     wth = climate_in,
                                     init.active = init_active,
                                     init.slow = init_slow,
                                     init.passive = init_passive,
                                   params=parameters)
     
+    if (init.df [1,]$RunBy=="treatment"){
     actuals <-  stocks_data %>%
-      select(site, year,  actual = modelled_SOC)
+      select(TrtID_Final, year,  actual = modelled_SOC)
     
     model_actual <- modelled %>%
-      merge(actuals, by=c("site", "year")) %>%
-      select(site, year, soc_total, actual) %>%
+      rename(TrtID_Final=site) %>%
+      merge(actuals, by=c("TrtID_Final", "year")) %>%
+      select(TrtID_Final, year, soc_total, actual) %>%
       filter(!is.na(actual))
+    } 
+    if (init.df [1,]$RunBy=="stock"){
+      actuals <-  stocks_data %>%
+        select(site, year,  actual = modelled_SOC)
+      
+      model_actual <- modelled %>%
+        merge(actuals, by=c("site", "year")) %>%
+        select(site, year, soc_total, actual) %>%
+        filter(!is.na(actual))
+    }
     
     loglike <- loglik(model_actual$soc_total, model_actual$actual)
     
     out.df=data.frame(parameters,
-                      site=site,
+                      RunIndex=RunIndex,
                       loglike=loglike)
     
     

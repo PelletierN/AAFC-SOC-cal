@@ -1,4 +1,4 @@
-"site","experiment","TrtID","year","input_type","modelled_SOC"
+"site","experiment","TrtID_Final","year","input_type","modelled_SOC"
 "E10_CT_CR1","E10","STE_CT_CR1",1992,"0-15",45.4
 "E10_CT_CR2","E10","STE_CT_CR2",1992,"0-15",45.4
 "E10_NT_CR1","E10","STE_NT_CR1",1992,"0-15",49.4
